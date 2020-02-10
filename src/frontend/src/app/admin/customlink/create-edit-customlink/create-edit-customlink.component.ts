@@ -3,14 +3,16 @@ import { Component, EventEmitter, Output, ViewChild, OnInit } from '@angular/cor
 import 'rxjs/add/operator/debounceTime';
 import 'rxjs/add/operator/distinctUntilChanged';
 import { NgForm } from '@angular/forms';
-import { MessageHandlerService } from '../../../shared/message-handler/message-handler.service';
-import { ActionType } from '../../../shared/shared.const';
-import { CustomlinkService } from '../../../shared/client/v1/customlink.service';
-import { Customlink } from '../../../shared/model/v1/customlink';
-import { CacheService } from '../../../shared/auth/cache.service';
-import { Namespace } from '../../../shared/model/v1/namespace';
-import { RoadmapService } from '../../../shared/client/v1/roadmap.service';
+import { MessageHandlerService } from 'app/shared/message-handler/message-handler.service';
+import { ActionType } from 'app/shared/shared.const';
+import { CustomlinkService } from 'app/shared/client/v1/customlink.service';
+import { Customlink } from 'app/shared/model/v1/customlink';
+import { CacheService } from 'app/shared/auth/cache.service';
+import { Namespace } from 'app/shared/model/v1/namespace';
+import { RoadmapService } from 'app/shared/client/v1/roadmap.service';
 import { PageState } from 'app/shared/page/page-state';
+import { LinkType } from 'app/shared/model/v1/link-type';
+
 @Component({
   selector: 'create-edit-customlink',
   templateUrl: 'create-edit-customlink.component.html',
@@ -28,7 +30,7 @@ export class CreateEditCustomlinkComponent implements OnInit {
   checkOnGoing = false;
   isSubmitOnGoing = false;
   params: string[] = [];
-  linkTypes: any[] = [];
+  linkTypes: LinkType[] = [];
   title: string;
   actionType: ActionType;
   namespaces: Namespace[];
@@ -47,6 +49,20 @@ export class CreateEditCustomlinkComponent implements OnInit {
     });
   }
 
+  typeChange() {
+    this.params = [];
+  }
+
+  get paramsList(): string[] {
+    const target = this.linkTypes.filter(item => {
+      return item.typeName === this.config.linkType;
+    })[0];
+    if (target && target.paramList) {
+      return target.paramList.split(',');
+    }
+    return [];
+  }
+
   newOrEdit(id?: number) {
     this.modalOpened = true;
     if (id) {
@@ -55,7 +71,7 @@ export class CreateEditCustomlinkComponent implements OnInit {
       this.configService.getById(id).subscribe(
         status => {
           this.config = status.data;
-          this.params = status.data.params.split(',');
+          this.params = this.filterParams(status.data.params || '', this.paramsList);
         },
         error => {
           this.messageHandlerService.handleError(error);
@@ -69,21 +85,15 @@ export class CreateEditCustomlinkComponent implements OnInit {
     }
   }
 
-  addParam() {
-    this.params.push('');
-  }
-
-  deleteParam(i: number) {
-    this.params.splice(i, 1);
+  filterParams(params, paramsList) {
+    return params.split(',').filter(param => {
+      return paramsList.indexOf(param) > -1;
+    });
   }
 
   onCancel() {
     this.modalOpened = false;
     this.currentForm.reset();
-  }
-
-  trackByFn(index: number) {
-    return index;
   }
 
   onSubmit() {
@@ -94,7 +104,7 @@ export class CreateEditCustomlinkComponent implements OnInit {
     this.config.params = this.params.join(',');
     switch (this.actionType) {
       case ActionType.ADD_NEW:
-        this.configService.create(this.config).subscribe(
+        this.configService.create({...this.config, addParam: this.config.params !== ''}).subscribe(
           status => {
             this.isSubmitOnGoing = false;
             this.create.emit(true);
@@ -110,7 +120,7 @@ export class CreateEditCustomlinkComponent implements OnInit {
         );
         break;
       case ActionType.EDIT:
-        this.configService.update(this.config).subscribe(
+        this.configService.update({...this.config, addParam: this.config.params !== ''}).subscribe(
           status => {
             this.isSubmitOnGoing = false;
             this.create.emit(true);
